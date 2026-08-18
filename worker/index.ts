@@ -1,12 +1,14 @@
 export default {
-  fetch(request) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith("/api/")) {
-      return Response.json({
-        name: "Cloudflare",
-      });
+    if (url.pathname === "/api/time") {
+      return Response.json(
+        { t: Date.now() },
+        { headers: { "cache-control": "no-store" } },
+      );
     }
-		return new Response(null, { status: 404 });
+
+    return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<Env>;
