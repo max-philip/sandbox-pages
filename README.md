@@ -1,4 +1,4 @@
-# sandbox
+# sandbox-pages
 
 A small React + Cloudflare Workers playground. Deployed as a single Worker that serves the static SPA and a tiny API.
 

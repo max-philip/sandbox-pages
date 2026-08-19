@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router";
 import Home from "./pages/Home";
 import Clock from "./pages/Clock";
 import Wheel from "./pages/Wheel";
+import Dice from "./pages/Dice";
 import styles from "./App.module.scss";
 import "./index.css";
 
@@ -24,12 +25,16 @@ createRoot(document.getElementById("root")!).render(
           <NavLink to="/wheel" className={navClass}>
             wheel
           </NavLink>
+          <NavLink to="/dice" className={navClass}>
+            dice
+          </NavLink>
         </nav>
         <main className={styles.main}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/clock" element={<Clock />} />
             <Route path="/wheel" element={<Wheel />} />
+            <Route path="/dice" element={<Dice />} />
           </Routes>
         </main>
       </div>

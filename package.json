@@ -1,5 +1,5 @@
 {
-	"name": "sandbox",
+	"name": "sandbox-pages",
 	"private": true,
 	"version": "0.0.0",
 	"type": "module",
@@ -12,15 +12,18 @@
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
+		"cannon-es": "^0.20.0",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
-		"react-router": "^8.3.0"
+		"react-router": "^8.3.0",
+		"three": "^0.185.1"
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.52.1",
 		"@types/node": "^24.13.3",
 		"@types/react": "^19.2.17",
 		"@types/react-dom": "^19.2.3",
+		"@types/three": "^0.185.4",
 		"@vitejs/plugin-react": "^6.0.4",
 		"oxlint": "^1.75.0",
 		"sass-embedded": "^1.102.0",

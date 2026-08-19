@@ -1,0 +1,151 @@
+/* src/pages/Dice.module.scss */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 880px;
+}
+
+.header {
+  h1 {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+  }
+}
+
+.sub {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+/* ---- stage ---- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.trayWrap {
+  position: relative;
+  width: min(420px, 86vw);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+
+  canvas {
+    display: block;
+  }
+}
+
+.roll {
+  padding: 0.7rem 2.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  &:disabled {
+    border-color: var(--dim);
+    color: var(--dim);
+    cursor: not-allowed;
+  }
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* ---- panel ---- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fieldLabel {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.sideGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.sideBtn {
+  padding: 0.55rem 0;
+  border: 1px solid var(--dim);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+
+  &:hover:not(:disabled) {
+    color: var(--bg);
+  }
+}
