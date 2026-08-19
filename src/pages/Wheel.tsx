@@ -13,6 +13,11 @@ import {
   spinTo,
   type Entry,
 } from '../lib/wheel';
+import { randomQuote } from '../lib/quotes';
+
+const SUB_QUOTES = [
+  'You spin me right \'round, baby, right \'round'
+];
 
 const STORAGE_KEY = 'sandbox.wheel.entries';
 const SPIN_MS = 4600;
@@ -40,6 +45,7 @@ function truncate(label: string, max: number): string {
 }
 
 export default function Wheel() {
+  const [sub] = useState(() => randomQuote(SUB_QUOTES));
   const [entries, setEntries] = useState<Entry[]>(loadEntries);
   const [draft, setDraft] = useState('');
   const [rotation, setRotation] = useState(0);
@@ -92,7 +98,7 @@ export default function Wheel() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>wheel</h1>
-        <p className={styles.sub}>Add options, spin, let it decide.</p>
+        <p className={styles.sub}>{sub}</p>
       </header>
 
       <div className={styles.layout}>

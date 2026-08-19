@@ -12,8 +12,15 @@ import {
   type DieSides,
   type DieBuild,
 } from '../lib/dice';
+import { randomQuote } from '../lib/quotes';
 
-const MAX_POOL_SIZE = 3;
+const SUB_QUOTES = [
+  'They see me rollin\', they hatin\'',
+  'Truth is... the game was rigged from the start'
+];
+
+const MAX_POOL_SIZE = 6;
+const BASE_RADIUS = 0.75;
 const TRAY_HALF = 3;
 const WALL_HEIGHT = 1.6;
 const SETTLE_FRAMES = 12;
@@ -23,6 +30,14 @@ const ROLL_TIMEOUT_MS = 4000;
 const PRESENT_DURATION_MS = 700;
 const PRESENT_Y = 1.6;
 const PRESENT_Z = 2.6;
+
+/** Dice shrink once the pool grows past 3 so a full 6-die roll still fits and doesn't overlap too much. */
+function radiusForPoolCount(count: number): number {
+  if (count <= 3) return BASE_RADIUS;
+  if (count === 4) return 0.64;
+  if (count === 5) return 0.56;
+  return 0.5;
+}
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
@@ -54,25 +69,32 @@ function alignFaceToward(faceNormal: THREE.Vector3, targetDir: THREE.Vector3): T
 }
 
 /** Grid-scattered spawn offset so multiple dice don't all drop on top of each other. */
-function spawnOffset(index: number, total: number): { x: number; z: number } {
+function spawnOffset(index: number, total: number, scale: number): { x: number; z: number } {
   const cols = Math.ceil(Math.sqrt(total));
   const rows = Math.ceil(total / cols);
-  const spacing = 0.9;
+  const spacing = 0.9 * scale;
   const col = index % cols;
   const row = Math.floor(index / cols);
-  const jitter = () => (Math.random() - 0.5) * 0.25;
+  const jitter = () => (Math.random() - 0.5) * 0.25 * scale;
   return {
     x: (col - (cols - 1) / 2) * spacing + jitter(),
     z: (row - (rows - 1) / 2) * spacing + jitter(),
   };
 }
 
-/** Where a settled die floats to, spread out in a row so a whole pool reads as a list. */
-function presentTargetFor(index: number, total: number): THREE.Vector3 {
-  const spacing = total <= 1 ? 0 : 1.7;
-  const x = (index - (total - 1) / 2) * spacing;
+/** Where a settled die floats to — a single row up to 3 dice, wrapping into rows above that. */
+function presentTargetFor(index: number, total: number, scale: number): THREE.Vector3 {
+  const cols = Math.min(total, 3);
+  const rows = Math.ceil(total / cols);
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+
+  const colSpacing = 1.7 * scale;
+  const rowSpacing = 2.1 * scale;
+  const x = (col - (cols - 1) / 2) * colSpacing;
+  const y = PRESENT_Y + (row - (rows - 1) / 2) * rowSpacing;
   const z = total <= 1 ? PRESENT_Z : PRESENT_Z - 0.3;
-  return new THREE.Vector3(x, PRESENT_Y, z);
+  return new THREE.Vector3(x, y, z);
 }
 
 // Reference size per die, tuned to roughly fit within one face; decal and
@@ -149,6 +171,7 @@ export default function Dice() {
   const pendingCountRef = useRef(0);
   const poolIdRef = useRef(1);
 
+  const [sub] = useState(() => randomQuote(SUB_QUOTES));
   const [pool, setPool] = useState<PoolEntry[]>([{ id: 0, sides: 6 }]);
   const [rolling, setRolling] = useState(false);
   const [rolledDice, setRolledDice] = useState<PoolEntry[]>([]);
@@ -167,8 +190,10 @@ export default function Dice() {
     }
 
     const total = entries.length;
+    const radius = radiusForPoolCount(total);
+    const scale = radius / BASE_RADIUS;
     liveDiceRef.current = entries.map((entry, index) => {
-      const build = buildDie(entry.sides);
+      const build = buildDie(entry.sides, radius);
       const group = new THREE.Group();
 
       const color = new THREE.Color().setHSL(Math.random(), 0.55, 0.6);
@@ -182,8 +207,8 @@ export default function Dice() {
       group.add(mesh);
 
       const highlights = new Map<number, THREE.MeshBasicMaterial>();
-      const decalSize = FACE_SCALE[entry.sides] * 0.85;
-      const highlightSize = FACE_SCALE[entry.sides] * 1.2;
+      const decalSize = FACE_SCALE[entry.sides] * 0.85 * scale;
+      const highlightSize = FACE_SCALE[entry.sides] * 1.2 * scale;
       const highlightMap = highlightTexture(highlightColor);
       for (const face of build.faces) {
         const decalQuat = faceDecalQuaternion(face.normal);
@@ -218,7 +243,7 @@ export default function Dice() {
         group.add(decal);
       }
 
-      const { x, z } = spawnOffset(index, total);
+      const { x, z } = spawnOffset(index, total, scale);
       const body = new CANNON.Body({
         mass: 1,
         shape: build.shape,
@@ -239,7 +264,7 @@ export default function Dice() {
         faces: build.faces,
         readFrom: build.readFrom,
         highlights,
-        presentTarget: presentTargetFor(index, total),
+        presentTarget: presentTargetFor(index, total, scale),
         settled: false,
         settleCounter: 0,
         anim: makePresentAnim(),
@@ -471,7 +496,7 @@ export default function Dice() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>dice</h1>
-        <p className={styles.sub}>Build a pool, roll it, watch it land.</p>
+        <p className={styles.sub}>{sub}</p>
       </header>
 
       <div className={styles.layout}>
