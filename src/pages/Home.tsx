@@ -7,7 +7,9 @@ const QUOTES = [
   "A man with no pants fears no pickpockets.",
   "A bottle of Heineken, shaken, not stirred.",
   "Bird flu? Yeah, they tend to do that.",
-  "Yeah our platform is fully configurable. You configureout a way to develop your own solution."
+  "Yeah our platform is fully configurable. You configureout a way to develop your own solution.",
+  "We never had this problem until you started monitoring for it.",
+  "You pass 100% of the tests you don't write."
 ];
 
 function randomQuote() {

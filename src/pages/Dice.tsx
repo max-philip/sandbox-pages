@@ -13,6 +13,7 @@ import {
   type DieBuild,
 } from '../lib/dice';
 
+const MAX_POOL_SIZE = 3;
 const TRAY_HALF = 3;
 const WALL_HEIGHT = 1.6;
 const SETTLE_FRAMES = 12;
@@ -20,7 +21,8 @@ const SETTLE_LIN_SQ = 0.02;
 const SETTLE_ANG_SQ = 0.02;
 const ROLL_TIMEOUT_MS = 4000;
 const PRESENT_DURATION_MS = 700;
-const PRESENT_TARGET = new THREE.Vector3(0, 1.6, 2.6);
+const PRESENT_Y = 1.6;
+const PRESENT_Z = 2.6;
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
@@ -51,6 +53,28 @@ function alignFaceToward(faceNormal: THREE.Vector3, targetDir: THREE.Vector3): T
   return new THREE.Quaternion().setFromRotationMatrix(rotation);
 }
 
+/** Grid-scattered spawn offset so multiple dice don't all drop on top of each other. */
+function spawnOffset(index: number, total: number): { x: number; z: number } {
+  const cols = Math.ceil(Math.sqrt(total));
+  const rows = Math.ceil(total / cols);
+  const spacing = 0.9;
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  const jitter = () => (Math.random() - 0.5) * 0.25;
+  return {
+    x: (col - (cols - 1) / 2) * spacing + jitter(),
+    z: (row - (rows - 1) / 2) * spacing + jitter(),
+  };
+}
+
+/** Where a settled die floats to, spread out in a row so a whole pool reads as a list. */
+function presentTargetFor(index: number, total: number): THREE.Vector3 {
+  const spacing = total <= 1 ? 0 : 1.7;
+  const x = (index - (total - 1) / 2) * spacing;
+  const z = total <= 1 ? PRESENT_Z : PRESENT_Z - 0.3;
+  return new THREE.Vector3(x, PRESENT_Y, z);
+}
+
 // Reference size per die, tuned to roughly fit within one face; decal and
 // highlight sizes both scale off this so bigger-faced dice get bigger numbers.
 const FACE_SCALE: Record<DieSides, number> = {
@@ -62,13 +86,9 @@ const FACE_SCALE: Record<DieSides, number> = {
   20: 0.24,
 };
 
-interface LiveDie {
-  group: THREE.Group;
-  body: CANNON.Body;
-  faces: DieBuild['faces'];
-  readFrom: DieBuild['readFrom'];
-  presented: boolean;
-  highlights: Map<number, THREE.MeshBasicMaterial>;
+interface PoolEntry {
+  id: number;
+  sides: DieSides;
 }
 
 interface PresentAnim {
@@ -78,6 +98,19 @@ interface PresentAnim {
   toPos: THREE.Vector3;
   fromQuat: THREE.Quaternion;
   toQuat: THREE.Quaternion;
+}
+
+interface LiveDie {
+  id: number;
+  group: THREE.Group;
+  body: CANNON.Body;
+  faces: DieBuild['faces'];
+  readFrom: DieBuild['readFrom'];
+  highlights: Map<number, THREE.MeshBasicMaterial>;
+  presentTarget: THREE.Vector3;
+  settled: boolean;
+  settleCounter: number;
+  anim: PresentAnim;
 }
 
 function disposeGroup(group: THREE.Group) {
@@ -94,108 +127,128 @@ function disposeGroup(group: THREE.Group) {
   });
 }
 
-export default function Dice() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const worldRef = useRef<CANNON.World | null>(null);
-  const dieMaterialRef = useRef<CANNON.Material | null>(null);
-  const liveDieRef = useRef<LiveDie | null>(null);
-  const settleCounterRef = useRef(0);
-  const rollStartRef = useRef(0);
-  const rollingRef = useRef(false);
-  const presentRef = useRef<PresentAnim>({
+function makePresentAnim(): PresentAnim {
+  return {
     active: false,
     start: 0,
     fromPos: new THREE.Vector3(),
     toPos: new THREE.Vector3(),
     fromQuat: new THREE.Quaternion(),
     toQuat: new THREE.Quaternion(),
-  });
+  };
+}
 
-  const [sides, setSides] = useState<DieSides>(6);
+export default function Dice() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const worldRef = useRef<CANNON.World | null>(null);
+  const dieMaterialRef = useRef<CANNON.Material | null>(null);
+  const liveDiceRef = useRef<LiveDie[]>([]);
+  const rollStartRef = useRef(0);
+  const rollingRef = useRef(false);
+  const pendingCountRef = useRef(0);
+  const poolIdRef = useRef(1);
+
+  const [pool, setPool] = useState<PoolEntry[]>([{ id: 0, sides: 6 }]);
   const [rolling, setRolling] = useState(false);
-  const [result, setResult] = useState<number | null>(null);
+  const [rolledDice, setRolledDice] = useState<PoolEntry[]>([]);
+  const [results, setResults] = useState<Record<number, number>>({});
 
-  const spawnDie = (value: DieSides) => {
+  const spawnPool = (entries: PoolEntry[]) => {
     const scene = sceneRef.current;
     const world = worldRef.current;
     const dieMaterial = dieMaterialRef.current;
     if (!scene || !world || !dieMaterial) return;
 
-    if (liveDieRef.current) {
-      scene.remove(liveDieRef.current.group);
-      disposeGroup(liveDieRef.current.group);
-      world.removeBody(liveDieRef.current.body);
+    for (const live of liveDiceRef.current) {
+      scene.remove(live.group);
+      disposeGroup(live.group);
+      world.removeBody(live.body);
     }
-    presentRef.current.active = false;
 
-    const build = buildDie(value);
-    const group = new THREE.Group();
+    const total = entries.length;
+    liveDiceRef.current = entries.map((entry, index) => {
+      const build = buildDie(entry.sides);
+      const group = new THREE.Group();
 
-    const color = new THREE.Color().setHSL(Math.random(), 0.55, 0.6);
-    const highlightColor = color.clone().lerp(new THREE.Color(0xffffff), 0.82);
-    const mesh = new THREE.Mesh(
-      build.geometry,
-      new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.35, metalness: 0.08 }),
-    );
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
+      const color = new THREE.Color().setHSL(Math.random(), 0.55, 0.6);
+      const highlightColor = color.clone().lerp(new THREE.Color(0xffffff), 0.82);
+      const mesh = new THREE.Mesh(
+        build.geometry,
+        new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.35, metalness: 0.08 }),
+      );
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
 
-    const highlights = new Map<number, THREE.MeshBasicMaterial>();
-    const decalSize = FACE_SCALE[value] * 0.85;
-    const highlightSize = FACE_SCALE[value] * 1.2;
-    const highlightMap = highlightTexture(highlightColor);
-    for (const face of build.faces) {
-      const decalQuat = faceDecalQuaternion(face.normal);
+      const highlights = new Map<number, THREE.MeshBasicMaterial>();
+      const decalSize = FACE_SCALE[entry.sides] * 0.85;
+      const highlightSize = FACE_SCALE[entry.sides] * 1.2;
+      const highlightMap = highlightTexture(highlightColor);
+      for (const face of build.faces) {
+        const decalQuat = faceDecalQuaternion(face.normal);
 
-      const highlightMaterial = new THREE.MeshBasicMaterial({
-        map: highlightMap,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        depthTest: true,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-      });
-      const highlight = new THREE.Mesh(new THREE.PlaneGeometry(highlightSize, highlightSize), highlightMaterial);
-      highlight.position.copy(face.centroid).addScaledVector(face.normal, 0.012);
-      highlight.quaternion.copy(decalQuat);
-      group.add(highlight);
-      highlights.set(face.value, highlightMaterial);
-
-      const decal = new THREE.Mesh(
-        new THREE.PlaneGeometry(decalSize, decalSize),
-        new THREE.MeshBasicMaterial({
-          map: numberTexture(face.value),
+        const highlightMaterial = new THREE.MeshBasicMaterial({
+          map: highlightMap,
           transparent: true,
+          opacity: 0,
+          depthWrite: false,
           depthTest: true,
           polygonOffset: true,
-          polygonOffsetFactor: -4,
-        }),
-      );
-      decal.position.copy(face.centroid).addScaledVector(face.normal, 0.018);
-      decal.quaternion.copy(decalQuat);
-      group.add(decal);
-    }
+          polygonOffsetFactor: -2,
+        });
+        const highlight = new THREE.Mesh(new THREE.PlaneGeometry(highlightSize, highlightSize), highlightMaterial);
+        highlight.position.copy(face.centroid).addScaledVector(face.normal, 0.012);
+        highlight.quaternion.copy(decalQuat);
+        group.add(highlight);
+        highlights.set(face.value, highlightMaterial);
 
-    const body = new CANNON.Body({
-      mass: 1,
-      shape: build.shape,
-      material: dieMaterial,
-      position: new CANNON.Vec3((Math.random() - 0.5) * 1.5, 3.5, (Math.random() - 0.5) * 1.5),
-      angularDamping: 0.15,
-      linearDamping: 0.05,
+        const decal = new THREE.Mesh(
+          new THREE.PlaneGeometry(decalSize, decalSize),
+          new THREE.MeshBasicMaterial({
+            map: numberTexture(face.value),
+            transparent: true,
+            depthTest: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+          }),
+        );
+        decal.position.copy(face.centroid).addScaledVector(face.normal, 0.018);
+        decal.quaternion.copy(decalQuat);
+        group.add(decal);
+      }
+
+      const { x, z } = spawnOffset(index, total);
+      const body = new CANNON.Body({
+        mass: 1,
+        shape: build.shape,
+        material: dieMaterial,
+        position: new CANNON.Vec3(x, 3.5 + index * 0.35, z),
+        angularDamping: 0.15,
+        linearDamping: 0.05,
+      });
+      body.quaternion.setFromEuler(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+
+      scene.add(group);
+      world.addBody(body);
+
+      return {
+        id: entry.id,
+        group,
+        body,
+        faces: build.faces,
+        readFrom: build.readFrom,
+        highlights,
+        presentTarget: presentTargetFor(index, total),
+        settled: false,
+        settleCounter: 0,
+        anim: makePresentAnim(),
+      };
     });
-    body.quaternion.setFromEuler(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
-
-    scene.add(group);
-    world.addBody(body);
-    liveDieRef.current = { group, body, faces: build.faces, readFrom: build.readFrom, presented: false, highlights };
   };
 
-  const spawnDieRef = useRef(spawnDie);
-  spawnDieRef.current = spawnDie;
+  const spawnPoolRef = useRef(spawnPool);
+  spawnPoolRef.current = spawnPool;
 
   // One-time scene/world/render-loop setup.
   useEffect(() => {
@@ -258,7 +311,7 @@ export default function Dice() {
       world.addBody(wall);
     }
 
-    spawnDieRef.current(sides);
+    spawnPoolRef.current(pool);
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
@@ -284,16 +337,15 @@ export default function Dice() {
       const dt = Math.min(clock.getDelta(), 1 / 30);
       world.step(1 / 60, dt, 5);
 
-      const live = liveDieRef.current;
-      if (live) {
-        const anim = presentRef.current;
+      for (const live of liveDiceRef.current) {
+        const anim = live.anim;
         if (anim.active) {
           const t = Math.min((performance.now() - anim.start) / PRESENT_DURATION_MS, 1);
           const e = easeOutCubic(t);
           live.group.position.lerpVectors(anim.fromPos, anim.toPos, e);
           live.group.quaternion.slerpQuaternions(anim.fromQuat, anim.toQuat, e);
           if (t >= 1) anim.active = false;
-        } else if (!live.presented) {
+        } else if (!live.settled) {
           live.group.position.copy(live.body.position as unknown as THREE.Vector3);
           bodyQuat.set(live.body.quaternion.x, live.body.quaternion.y, live.body.quaternion.z, live.body.quaternion.w);
           live.group.quaternion.copy(bodyQuat);
@@ -303,13 +355,12 @@ export default function Dice() {
             const angSq = live.body.angularVelocity.lengthSquared();
             const timedOut = performance.now() - rollStartRef.current > ROLL_TIMEOUT_MS;
             if ((linSq < SETTLE_LIN_SQ && angSq < SETTLE_ANG_SQ) || timedOut) {
-              settleCounterRef.current += 1;
+              live.settleCounter += 1;
             } else {
-              settleCounterRef.current = 0;
+              live.settleCounter = 0;
             }
 
-            if (settleCounterRef.current > SETTLE_FRAMES || timedOut) {
-              rollingRef.current = false;
+            if (live.settleCounter > SETTLE_FRAMES || timedOut) {
               let best = live.faces[0];
               let bestDot = -Infinity;
               const target = live.readFrom === 'up' ? upVec : downVec;
@@ -321,20 +372,28 @@ export default function Dice() {
                   best = face;
                 }
               }
-              setResult(best.value);
-              setRolling(false);
 
+              live.settled = true;
               world.removeBody(live.body);
-              live.presented = true;
               const winningHighlight = live.highlights.get(best.value);
               if (winningHighlight) winningHighlight.opacity = 1;
               anim.fromPos.copy(live.group.position);
               anim.fromQuat.copy(live.group.quaternion);
-              anim.toPos.copy(PRESENT_TARGET);
-              const camDir = new THREE.Vector3().subVectors(camera.position, PRESENT_TARGET).normalize();
+              anim.toPos.copy(live.presentTarget);
+              const camDir = new THREE.Vector3().subVectors(camera.position, live.presentTarget).normalize();
               anim.toQuat.copy(alignFaceToward(best.normal, camDir));
               anim.start = performance.now();
               anim.active = true;
+
+              const id = live.id;
+              const value = best.value;
+              setResults((prev) => ({ ...prev, [id]: value }));
+
+              pendingCountRef.current -= 1;
+              if (pendingCountRef.current <= 0) {
+                rollingRef.current = false;
+                setRolling(false);
+              }
             }
           }
         }
@@ -347,8 +406,8 @@ export default function Dice() {
     return () => {
       cancelAnimationFrame(frameId);
       observer.disconnect();
-      if (liveDieRef.current) {
-        disposeGroup(liveDieRef.current.group);
+      for (const live of liveDiceRef.current) {
+        disposeGroup(live.group);
       }
       ground.geometry.dispose();
       trayMaterialThree.dispose();
@@ -358,70 +417,116 @@ export default function Dice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Respawn a resting die whenever the side count changes (but not mid-roll).
+  // Respawn a resting arrangement whenever the pool changes (but not mid-roll).
   useEffect(() => {
     if (rollingRef.current) return;
     if (!sceneRef.current) return;
-    spawnDie(sides);
-    setResult(null);
+    spawnPool(pool);
+    setRolledDice([]);
+    setResults({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sides]);
+  }, [pool]);
+
+  const addDie = (sides: DieSides) => {
+    if (rolling || pool.length >= MAX_POOL_SIZE) return;
+    const id = poolIdRef.current++;
+    setPool((prev) => [...prev, { id, sides }]);
+  };
+
+  const removeDie = (id: number) => {
+    if (rolling) return;
+    setPool((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
+  const clearPool = () => {
+    if (rolling) return;
+    setPool([]);
+  };
 
   const roll = () => {
-    if (rolling) return;
+    if (rolling || pool.length === 0) return;
 
-    spawnDie(sides);
-    const live = liveDieRef.current;
-    if (!live) return;
+    spawnPool(pool);
+    const dice = liveDiceRef.current;
+    if (dice.length === 0) return;
 
-    live.body.velocity.set((Math.random() - 0.5) * 6, 1, (Math.random() - 0.5) * 6);
-    live.body.angularVelocity.set(
-      (Math.random() - 0.5) * 20,
-      (Math.random() - 0.5) * 20,
-      (Math.random() - 0.5) * 20,
-    );
+    for (const live of dice) {
+      live.body.velocity.set((Math.random() - 0.5) * 6, 1, (Math.random() - 0.5) * 6);
+      live.body.angularVelocity.set(
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 20,
+      );
+    }
 
-    settleCounterRef.current = 0;
+    pendingCountRef.current = dice.length;
     rollStartRef.current = performance.now();
     rollingRef.current = true;
     setRolling(true);
-    setResult(null);
+    setRolledDice(pool.map((entry) => ({ ...entry })));
+    setResults({});
   };
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>dice</h1>
-        <p className={styles.sub}>Pick a die, roll it, watch it land.</p>
+        <p className={styles.sub}>Build a pool, roll it, watch it land.</p>
       </header>
 
       <div className={styles.layout}>
         <section className={styles.stage}>
           <div className={styles.trayWrap} ref={containerRef} />
 
-          <button className={styles.roll} onClick={roll} disabled={rolling}>
+          <button className={styles.roll} onClick={roll} disabled={rolling || pool.length === 0}>
             {rolling ? 'rolling…' : 'roll'}
           </button>
 
           <div className={styles.result} aria-live="polite">
-            {result !== null && <span className={styles.resultValue}>{result}</span>}
+            {rolledDice.map((entry) => (
+              <div key={entry.id} className={styles.resultChip}>
+                <span className={styles.resultDie}>d{entry.sides}</span>
+                <span className={styles.resultValue}>{results[entry.id] ?? '–'}</span>
+              </div>
+            ))}
           </div>
         </section>
 
         <section className={styles.panel}>
-          <span className={styles.fieldLabel}>Sides</span>
+          <span className={styles.fieldLabel}>Add dice</span>
           <div className={styles.sideGrid}>
             {DIE_OPTIONS.map((n) => (
               <button
                 key={n}
-                className={n === sides ? `${styles.sideBtn} ${styles.active}` : styles.sideBtn}
-                onClick={() => setSides(n)}
-                disabled={rolling}
+                className={styles.sideBtn}
+                onClick={() => addDie(n)}
+                disabled={rolling || pool.length >= MAX_POOL_SIZE}
               >
                 d{n}
               </button>
             ))}
           </div>
+
+          <span className={styles.fieldLabel}>
+            Pool ({pool.length}/{MAX_POOL_SIZE})
+          </span>
+          <div className={styles.pool}>
+            {pool.length === 0 && <span className={styles.poolEmpty}>no dice yet</span>}
+            {pool.map((entry) => (
+              <button
+                key={entry.id}
+                className={styles.poolChip}
+                onClick={() => removeDie(entry.id)}
+                disabled={rolling}
+                title={`Remove d${entry.sides}`}
+              >
+                d{entry.sides} <span className={styles.poolChipX}>×</span>
+              </button>
+            ))}
+          </div>
+          <button className={styles.ghost} onClick={clearPool} disabled={rolling || pool.length === 0}>
+            clear
+          </button>
         </section>
       </div>
     </div>

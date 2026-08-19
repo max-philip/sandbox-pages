@@ -99,7 +99,13 @@ export default function Wheel() {
         <section className={styles.stage}>
           <div className={styles.wheelWrap}>
             <svg className={styles.pointer} viewBox="0 0 24 20" width="24" height="20" aria-hidden="true">
-              <path d="M12 20 L2 0 L22 0 Z" fill="var(--accent)" />
+              <path
+                d="M12 20 L2 0 L22 0 Z"
+                fill="var(--accent)"
+                stroke="var(--bg)"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
             </svg>
 
             <svg
