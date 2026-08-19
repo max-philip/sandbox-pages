@@ -24,10 +24,12 @@ interface Whoami {
 }
 
 function guessOS(ua: string): string {
+  // iOS Safari's UA includes "like Mac OS X" for compatibility, so this must
+  // be checked before the desktop macOS pattern or iPhones read as Macs.
+  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
   if (/windows/i.test(ua)) return "Windows";
   if (/mac os x|macintosh/i.test(ua)) return "macOS";
   if (/android/i.test(ua)) return "Android";
-  if (/iphone|ipad|ipod/i.test(ua)) return "iOS";
   if (/linux/i.test(ua)) return "Linux";
   return "unknown";
 }
