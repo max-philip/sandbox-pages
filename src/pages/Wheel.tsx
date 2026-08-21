@@ -184,7 +184,7 @@ export default function Wheel() {
             {spinning ? 'spinning…' : 'spin'}
           </button>
 
-          <div className={styles.result} aria-live="polite">
+          <div className={styles.result} data-has-winner={winner ? 'true' : undefined} aria-live="polite">
             {count < 2 && !spinning && <span className={styles.hint}>Add at least two options to spin.</span>}
             {winner && (
               <>

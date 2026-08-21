@@ -33,7 +33,7 @@
 @media (max-width: 760px) {
   .layout {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
   }
 }
 
@@ -102,8 +102,13 @@
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  min-height: 3.5rem;
+  min-height: 2.25rem;
   text-align: center;
+  transition: min-height 220ms ease;
+
+  &[data-has-winner="true"] {
+    min-height: 4.5rem;
+  }
 }
 
 .winnerLabel {
