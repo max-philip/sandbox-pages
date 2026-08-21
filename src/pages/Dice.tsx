@@ -164,7 +164,7 @@ export default function Dice() {
   const poolIdRef = useRef(1);
 
   const [sub] = useState(() => randomQuote(SUB_QUOTES));
-  const [pool, setPool] = useState<PoolEntry[]>([{ id: 0, sides: 6 }]);
+  const [pool, setPool] = useState<PoolEntry[]>([{ id: 0, sides: 20 }]);
   const [rolling, setRolling] = useState(false);
   const [rolledDice, setRolledDice] = useState<PoolEntry[]>([]);
   const [results, setResults] = useState<Record<number, number>>({});
