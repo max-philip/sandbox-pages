@@ -23,7 +23,8 @@
 
 .time {
   display: block;
-  font-family: var(--font-mono);
+  font-family: "JetBrains Mono", var(--font-mono);
+  font-weight: 700;
   font-size: clamp(3rem, 15vw, 10rem);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
@@ -79,7 +80,7 @@
 
 .val {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: "JetBrains Mono", var(--font-mono);
   min-width: 5ch;
   text-align: center;
 }

@@ -10,6 +10,8 @@ export interface DieFace {
   normal: THREE.Vector3;
   centroid: THREE.Vector3;
   value: number;
+  /** Radius of the largest circle centered on the centroid that stays inside the face polygon. */
+  faceRadius: number;
 }
 
 export interface DieBuild {
@@ -19,6 +21,48 @@ export interface DieBuild {
   /** Face read as the result: 'up' for dice that land flat-side-up, 'down' for the d4 (numbers read from the resting face). */
   readFrom: 'up' | 'down';
   radius: number;
+}
+
+/**
+ * Largest circle centered on `centroid` that fits inside the convex polygon
+ * described by `points` (its face's vertices, possibly with duplicates from
+ * triangulation) — the geometric basis for sizing a face decal so it never
+ * overhangs an edge, however small or lopsided that face is.
+ */
+function facePolygonInradius(centroid: THREE.Vector3, normal: THREE.Vector3, points: THREE.Vector3[]): number {
+  const reference = Math.abs(normal.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const u = new THREE.Vector3().crossVectors(normal, reference).normalize();
+  const v = new THREE.Vector3().crossVectors(normal, u).normalize();
+
+  const seen = new Set<string>();
+  const local: { x: number; y: number }[] = [];
+  const rel = new THREE.Vector3();
+  for (const p of points) {
+    rel.subVectors(p, centroid);
+    const x = rel.dot(u);
+    const y = rel.dot(v);
+    const key = `${x.toFixed(4)},${y.toFixed(4)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      local.push({ x, y });
+    }
+  }
+
+  // Convex face + centroid at the origin, so sorting by angle recovers boundary order.
+  local.sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x));
+
+  let minDist = Infinity;
+  for (let i = 0; i < local.length; i++) {
+    const p0 = local[i];
+    const p1 = local[(i + 1) % local.length];
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const edgeLen = Math.hypot(dx, dy);
+    if (edgeLen < 1e-6) continue;
+    const dist = Math.abs(p0.x * p1.y - p0.y * p1.x) / edgeLen;
+    minDist = Math.min(minDist, dist);
+  }
+  return minDist;
 }
 
 function extractFaces(geometry: THREE.BufferGeometry): DieFace[] {
@@ -45,11 +89,15 @@ function extractFaces(geometry: THREE.BufferGeometry): DieFace[] {
     cluster.points.push(a.clone(), b.clone(), c.clone());
   }
 
-  return clusters.map((cl, i) => ({
-    normal: cl.normal,
-    centroid: cl.points.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(cl.points.length),
-    value: i + 1,
-  }));
+  return clusters.map((cl, i) => {
+    const centroid = cl.points.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(cl.points.length);
+    return {
+      normal: cl.normal,
+      centroid,
+      value: i + 1,
+      faceRadius: facePolygonInradius(centroid, cl.normal, cl.points),
+    };
+  });
 }
 
 function convexShapeFromGeometry(geometry: THREE.BufferGeometry): CANNON.ConvexPolyhedron {
@@ -114,12 +162,12 @@ function buildBox(radius: number): DieBuild {
   const half = size / 2;
 
   const faces: DieFace[] = [
-    { normal: new THREE.Vector3(1, 0, 0), centroid: new THREE.Vector3(half, 0, 0), value: 1 },
-    { normal: new THREE.Vector3(-1, 0, 0), centroid: new THREE.Vector3(-half, 0, 0), value: 6 },
-    { normal: new THREE.Vector3(0, 1, 0), centroid: new THREE.Vector3(0, half, 0), value: 2 },
-    { normal: new THREE.Vector3(0, -1, 0), centroid: new THREE.Vector3(0, -half, 0), value: 5 },
-    { normal: new THREE.Vector3(0, 0, 1), centroid: new THREE.Vector3(0, 0, half), value: 3 },
-    { normal: new THREE.Vector3(0, 0, -1), centroid: new THREE.Vector3(0, 0, -half), value: 4 },
+    { normal: new THREE.Vector3(1, 0, 0), centroid: new THREE.Vector3(half, 0, 0), value: 1, faceRadius: half },
+    { normal: new THREE.Vector3(-1, 0, 0), centroid: new THREE.Vector3(-half, 0, 0), value: 6, faceRadius: half },
+    { normal: new THREE.Vector3(0, 1, 0), centroid: new THREE.Vector3(0, half, 0), value: 2, faceRadius: half },
+    { normal: new THREE.Vector3(0, -1, 0), centroid: new THREE.Vector3(0, -half, 0), value: 5, faceRadius: half },
+    { normal: new THREE.Vector3(0, 0, 1), centroid: new THREE.Vector3(0, 0, half), value: 3, faceRadius: half },
+    { normal: new THREE.Vector3(0, 0, -1), centroid: new THREE.Vector3(0, 0, -half), value: 4, faceRadius: half },
   ];
 
   return {
@@ -171,7 +219,8 @@ function buildD10(radius: number): DieBuild {
       positions.push(apex.x, apex.y, apex.z, p2.x, p2.y, p2.z, p1.x, p1.y, p1.z);
     }
 
-    faces.push({ normal, centroid, value: k + 1 });
+    const kitePoints = [apex, p0, p1, p2];
+    faces.push({ normal, centroid, value: k + 1, faceRadius: facePolygonInradius(centroid, normal, kitePoints) });
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -252,47 +301,48 @@ export function faceDecalQuaternion(normal: THREE.Vector3): THREE.Quaternion {
   return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
 }
 
+const NUMBER_FONT_FAMILY = '"JetBrains Mono", ui-monospace, monospace';
+
 /** Small canvas texture with a centered number, used as a face-label decal. */
 export function numberTexture(value: number): THREE.CanvasTexture {
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = '#12121a';
-  ctx.font = `700 ${size * 0.58}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(String(value), size / 2, size / 2 + size * 0.03);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Soft radial glow (color fading to transparent), used to tint the winning face when revealed. */
-export function highlightTexture(color: THREE.Color): THREE.CanvasTexture {
-  const size = 256;
+  const size = 160;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  const r = Math.round(color.r * 255);
-  const g = Math.round(color.g * 255);
-  const b = Math.round(color.b * 255);
-  const center = size / 2;
-  const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
-  gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.95)`);
-  gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.65)`);
-  gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.1)`);
-  gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+  const label = String(value);
+  const maxWidth = size * 0.82;
 
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
+  const draw = () => {
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#12121a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
+    let fontSize = size * 0.72;
+    ctx.font = `700 ${fontSize}px ${NUMBER_FONT_FAMILY}`;
+    const width = ctx.measureText(label).width;
+    if (width > maxWidth) {
+      fontSize *= maxWidth / width;
+      ctx.font = `700 ${fontSize}px ${NUMBER_FONT_FAMILY}`;
+    }
+    ctx.fillText(label, size / 2, size / 2 + size * 0.03);
+  };
+
+  draw();
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+
+  // Canvas text needs the font already loaded to use it; redraw once it lands
+  // in case this texture was built before the JetBrains Mono @font-face resolved.
+  const fontSpec = `700 ${size * 0.72}px "JetBrains Mono"`;
+  if (!document.fonts.check(fontSpec)) {
+    document.fonts.load(fontSpec).then(() => {
+      draw();
+      texture.needsUpdate = true;
+    });
+  }
+
   return texture;
 }

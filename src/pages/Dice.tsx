@@ -6,7 +6,6 @@ import styles from './Dice.module.scss';
 import {
   buildDie,
   numberTexture,
-  highlightTexture,
   faceDecalQuaternion,
   DIE_OPTIONS,
   type DieSides,
@@ -97,16 +96,10 @@ function presentTargetFor(index: number, total: number, scale: number): THREE.Ve
   return new THREE.Vector3(x, y, z);
 }
 
-// Reference size per die, tuned to roughly fit within one face; decal and
-// highlight sizes both scale off this so bigger-faced dice get bigger numbers.
-const FACE_SCALE: Record<DieSides, number> = {
-  4: 0.52,
-  6: 0.5,
-  8: 0.4,
-  10: 0.36,
-  12: 0.34,
-  20: 0.24,
-};
+// The number decal is inscribed inside each face's own fitted circle (see
+// DieFace.faceRadius), so every die — down to the d20's tight triangles —
+// gets a number sized to actually fill its face instead of a guessed constant.
+const DECAL_FILL = 0.96;
 
 interface PoolEntry {
   id: number;
@@ -128,7 +121,6 @@ interface LiveDie {
   body: CANNON.Body;
   faces: DieBuild['faces'];
   readFrom: DieBuild['readFrom'];
-  highlights: Map<number, THREE.MeshBasicMaterial>;
   presentTarget: THREE.Vector3;
   settled: boolean;
   settleCounter: number;
@@ -176,6 +168,7 @@ export default function Dice() {
   const [rolling, setRolling] = useState(false);
   const [rolledDice, setRolledDice] = useState<PoolEntry[]>([]);
   const [results, setResults] = useState<Record<number, number>>({});
+  const [dieColors, setDieColors] = useState<Record<number, string>>({});
 
   const spawnPool = (entries: PoolEntry[]) => {
     const scene = sceneRef.current;
@@ -192,41 +185,26 @@ export default function Dice() {
     const total = entries.length;
     const radius = radiusForPoolCount(total);
     const scale = radius / BASE_RADIUS;
+    const colors: Record<number, string> = {};
     liveDiceRef.current = entries.map((entry, index) => {
       const build = buildDie(entry.sides, radius);
       const group = new THREE.Group();
 
       const color = new THREE.Color().setHSL(Math.random(), 0.55, 0.6);
-      const highlightColor = color.clone().lerp(new THREE.Color(0xffffff), 0.82);
+      colors[entry.id] = `#${color.getHexString()}`;
       const mesh = new THREE.Mesh(
         build.geometry,
-        new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.35, metalness: 0.08 }),
+        new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.3, metalness: 0.4 }),
       );
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       group.add(mesh);
 
-      const highlights = new Map<number, THREE.MeshBasicMaterial>();
-      const decalSize = FACE_SCALE[entry.sides] * 0.85 * scale;
-      const highlightSize = FACE_SCALE[entry.sides] * 1.2 * scale;
-      const highlightMap = highlightTexture(highlightColor);
       for (const face of build.faces) {
         const decalQuat = faceDecalQuaternion(face.normal);
-
-        const highlightMaterial = new THREE.MeshBasicMaterial({
-          map: highlightMap,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          depthTest: true,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-        });
-        const highlight = new THREE.Mesh(new THREE.PlaneGeometry(highlightSize, highlightSize), highlightMaterial);
-        highlight.position.copy(face.centroid).addScaledVector(face.normal, 0.012);
-        highlight.quaternion.copy(decalQuat);
-        group.add(highlight);
-        highlights.set(face.value, highlightMaterial);
+        // faceRadius is the inscribed-circle radius already sized to this die's
+        // current radius, so this fits the face directly with no extra scale term.
+        const decalSize = face.faceRadius * Math.SQRT2 * DECAL_FILL;
 
         const decal = new THREE.Mesh(
           new THREE.PlaneGeometry(decalSize, decalSize),
@@ -263,13 +241,13 @@ export default function Dice() {
         body,
         faces: build.faces,
         readFrom: build.readFrom,
-        highlights,
         presentTarget: presentTargetFor(index, total, scale),
         settled: false,
         settleCounter: 0,
         anim: makePresentAnim(),
       };
     });
+    setDieColors(colors);
   };
 
   const spawnPoolRef = useRef(spawnPool);
@@ -400,8 +378,6 @@ export default function Dice() {
 
               live.settled = true;
               world.removeBody(live.body);
-              const winningHighlight = live.highlights.get(best.value);
-              if (winningHighlight) winningHighlight.opacity = 1;
               anim.fromPos.copy(live.group.position);
               anim.fromQuat.copy(live.group.quaternion);
               anim.toPos.copy(live.presentTarget);
@@ -511,7 +487,9 @@ export default function Dice() {
             {rolledDice.map((entry) => (
               <div key={entry.id} className={styles.resultChip}>
                 <span className={styles.resultDie}>d{entry.sides}</span>
-                <span className={styles.resultValue}>{results[entry.id] ?? '–'}</span>
+                <span className={styles.resultValue} style={{ color: dieColors[entry.id] }}>
+                  {results[entry.id] ?? '–'}
+                </span>
               </div>
             ))}
           </div>
