@@ -1,5 +1,14 @@
+import { useState, type CSSProperties } from "react";
 import { useExactTime } from "../lib/useExactTime";
 import styles from "./Clock.module.scss";
+
+/** Random light color so the clock text isn't the same on every load — always readable on the dark background. */
+function randomLightColor(): string {
+  const h = Math.floor(Math.random() * 360);
+  const s = 45 + Math.floor(Math.random() * 30);
+  const l = 75 + Math.floor(Math.random() * 15);
+  return `hsl(${h} ${s}% ${l}%)`;
+}
 
 const fmt = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
@@ -31,9 +40,13 @@ export default function Clock() {
   const { now, status, uncertainty } = useExactTime();
   const d = new Date(now);
   const ms = String(d.getMilliseconds()).padStart(3, "0");
+  const [clockColor] = useState(randomLightColor);
 
   return (
-    <div className={styles.page}>
+    <div
+      className={styles.page}
+      style={{ "--clock-fg": clockColor } as CSSProperties}
+    >
       <time
         className={styles.date}
         data-status={status}

@@ -8,7 +8,7 @@
 .date {
   display: block;
   font-size: clamp(0.9rem, 3vw, 2rem);
-  color: var(--muted);
+  color: color-mix(in srgb, var(--clock-fg) 70%, transparent);
   letter-spacing: 0.02em;
   transition: opacity 250ms ease;
 
@@ -25,6 +25,7 @@
   display: block;
   font-family: "JetBrains Mono", var(--font-mono);
   font-weight: 700;
+  color: var(--clock-fg);
   font-size: clamp(3rem, 15vw, 10rem);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
@@ -42,7 +43,7 @@
 
 .ms {
   font-size: 0.35em;
-  color: var(--dim);
+  color: color-mix(in srgb, var(--clock-fg) 45%, transparent);
   vertical-align: baseline;
 }
 
@@ -51,7 +52,7 @@
   display: flex;
   gap: 1.5rem;
   font-size: clamp(0.85rem, 2.2vw, 1.25rem);
-  color: var(--muted);
+  color: color-mix(in srgb, var(--clock-fg) 70%, transparent);
   letter-spacing: 0.02em;
   transition: opacity 250ms ease;
 
@@ -72,7 +73,7 @@
 }
 
 .key {
-  color: var(--dim);
+  color: color-mix(in srgb, var(--clock-fg) 45%, transparent);
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
