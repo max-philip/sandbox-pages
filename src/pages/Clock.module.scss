@@ -108,7 +108,7 @@
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
-  border: 2px solid var(--dim);
+  border: 2px solid color-mix(in srgb, var(--clock-fg) 55%, transparent);
   border-radius: 50%;
   background: var(--bg);
   color: color-mix(in srgb, var(--clock-fg) 55%, transparent);
