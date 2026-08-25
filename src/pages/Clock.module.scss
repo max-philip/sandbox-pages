@@ -30,6 +30,7 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
+  white-space: nowrap;
   transition: opacity 250ms ease;
 
   &[data-status="syncing"] {
@@ -39,11 +40,22 @@
   &[data-status="error"] {
     opacity: 0.6;
   }
+
+  &[data-ampm="true"] {
+    font-size: clamp(2.5rem, 12vw, 8.5rem);
+  }
 }
 
 .ms {
   font-size: 0.35em;
   color: color-mix(in srgb, var(--clock-fg) 45%, transparent);
+  vertical-align: baseline;
+}
+
+.ampm {
+  font-size: 0.5em;
+  color: color-mix(in srgb, var(--clock-fg) 45%, transparent);
+  letter-spacing: 0.02em;
   vertical-align: baseline;
 }
 
@@ -84,6 +96,91 @@
   font-family: "JetBrains Mono", var(--font-mono);
   min-width: 5ch;
   text-align: center;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 13rem;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--clock-fg) 15%, transparent);
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+
+  .settings:hover &,
+  .settings:has(:focus-visible) & {
+    opacity: 1;
+  }
+
+  &[data-disabled="true"] {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .settings:hover &[data-disabled="true"],
+  .settings:has(:focus-visible) &[data-disabled="true"] {
+    opacity: 0.3;
+  }
+}
+
+.switchText {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--clock-fg) 75%, transparent);
+}
+
+.switch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid var(--dim);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--clock-fg) 60%, var(--dim));
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &[aria-checked="true"] {
+    border-color: var(--clock-fg);
+    background: color-mix(in srgb, var(--clock-fg) 18%, transparent);
+  }
+}
+
+.switchThumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--clock-fg) 55%, transparent);
+  transform: translateX(0);
+  transition: transform 0.18s ease, background 0.18s ease;
+
+  .switch[aria-checked="true"] & {
+    transform: translateX(18px);
+    background: var(--clock-fg);
+  }
 }
 
 @media (max-width: 900px) {
