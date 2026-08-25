@@ -48,6 +48,11 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
 
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+/** "Australia/Sydney" -> "Sydney". The UTC offset is shown separately, so the region prefix is just noise. */
+function shortZoneName(z: string): string {
+  return z.slice(z.lastIndexOf("/") + 1).replace(/_/g, " ");
+}
+
 /** Timezone offset as "+10:00". Date.getTimezoneOffset() is minutes *behind* UTC, so the sign flips. */
 function utcOffset(d: Date): string {
   const mins = -d.getTimezoneOffset();
@@ -183,7 +188,9 @@ export default function Clock() {
       <dl className={styles.meta} data-status={status}>
         <div className={styles.row}>
           <dt className={styles.key}>zone</dt>
-          <dd className={styles.val}>{zone}</dd>
+          <dd className={styles.val} title={zone}>
+            {shortZoneName(zone)}
+          </dd>
         </div>
         <div className={styles.row}>
           <dt className={styles.key}>utc</dt>
