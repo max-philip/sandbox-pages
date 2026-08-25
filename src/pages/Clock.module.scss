@@ -100,7 +100,7 @@
 
 .settingsButton {
   position: fixed;
-  top: calc(var(--nav-h) + 0.75rem);
+  bottom: 1rem;
   right: 1rem;
   display: flex;
   align-items: center;
@@ -124,7 +124,7 @@
 
 .popover {
   position: fixed;
-  top: calc(var(--nav-h) + 3.5rem);
+  bottom: 3.75rem;
   right: 1rem;
   width: 14rem;
   padding: 1rem;
@@ -133,7 +133,7 @@
   background: var(--surface);
   box-shadow: 0 12px 30px color-mix(in srgb, var(--bg) 60%, transparent);
   z-index: 20;
-  transform-origin: top right;
+  transform-origin: bottom right;
   animation: popoverIn 120ms ease;
 }
 
@@ -149,7 +149,7 @@
 @keyframes popoverIn {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.97);
+    transform: translateY(4px) scale(0.97);
   }
   to {
     opacity: 1;

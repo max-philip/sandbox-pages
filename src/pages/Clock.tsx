@@ -169,7 +169,7 @@ export default function Clock() {
           if (part.type === "dayPeriod") {
             return (
               <span key={i} className={styles.ampm}>
-                {part.value}
+                {part.value.toUpperCase()}
               </span>
             );
           }
