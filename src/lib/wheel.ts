@@ -11,7 +11,7 @@ export const RADIUS = 100;
 const mod360 = (deg: number) => ((deg % 360) + 360) % 360;
 
 /** Point on a circle at `deg` clockwise from 12 o'clock, in SVG coords (y down). */
-export function point(deg: number, r = RADIUS): readonly [number, number] {
+function point(deg: number, r = RADIUS): readonly [number, number] {
   const rad = (deg * Math.PI) / 180;
   return [r * Math.sin(rad), -r * Math.cos(rad)] as const;
 }

@@ -77,7 +77,6 @@ export async function sync(signal: AbortSignal, count = 5): Promise<Sync> {
 
   // Lowest RTT means least asymmetric queuing delay, so smallest error.
   // NTP does the same. Averaging would pull the good sample toward the bad ones.
-  console.log("rtts", samples.map((s) => Math.round(s.rtt)));
   samples.sort((a, b) => a.rtt - b.rtt);
   const best = samples[0];
 
