@@ -488,7 +488,7 @@ export default function Dice() {
   const percentileDigits = allSettled && isPercentilePool ? rolledDice.map((entry) => results[entry.id] % 10) : [];
   const percentileValue = formatNumber(Number(percentileDigits.join('')));
   const percentileMax = formatNumber(10 ** rolledDice.length - 1);
-  const percentileLabel = `d${formatNumber(10 ** rolledDice.length)}`;
+  const percentileLabel = `d${10 ** rolledDice.length}`;
 
   const showSum = allSettled && rolledDice.length > 1;
   const showPercentile = allSettled && isPercentilePool;
