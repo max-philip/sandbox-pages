@@ -146,7 +146,6 @@
   text-align: center;
 }
 
-// Sized as soon as it mounts (its row count is fixed by the pool's dice, known
 // Always rendered at its full two-row size, from first paint, regardless of
 // pool or roll state — nothing here ever mounts, unmounts, grows, or shrinks,
 // so nothing else on the page ever has to shift. Whichever row applies (sum,

@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
 import styles from "./Home.module.scss";
-// import { randomQuote } from "../lib/quotes";
-
-// const QUOTES = [
-//   "Don't smile because it's over, cry because it happened.",
-//   "A man with no pants fears no pickpockets.",
-//   "Bird flu? Yeah, they tend to do that.",
-//   "Yeah our platform is fully configurable. You configureout a way to develop your own solution.",
-//   "You pass 100% of the tests you don't write."
-// ];
 
 interface Whoami {
   ip: string | null;
@@ -47,7 +38,6 @@ function joinLocation(w: Whoami | null): string {
 }
 
 export default function Home() {
-  // const [quote] = useState(() => randomQuote(QUOTES));
   const [os] = useState(() => guessOS(navigator.userAgent));
   const [browser] = useState(() => guessBrowser(navigator.userAgent));
   const [locale] = useState(() => navigator.language);
@@ -102,7 +92,6 @@ export default function Home() {
           ))}
         </dl>
       </div>
-      {/* <p className={styles.quote}>{quote}</p> */}
     </div>
   );
 }
