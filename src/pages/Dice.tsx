@@ -85,7 +85,12 @@ function spawnOffset(index: number, total: number, scale: number): { x: number; 
   };
 }
 
-/** Where a settled die floats to — a single row up to 3 dice, wrapping into rows above that. */
+/**
+ * Where a settled die floats to — a single row up to 3 dice, wrapping into
+ * rows below that. Row order matches the result chips underneath (index 0
+ * first, top row), so reading top-to-bottom here lines up with reading
+ * left-to-right down there.
+ */
 function presentTargetFor(index: number, total: number, scale: number): THREE.Vector3 {
   const cols = Math.min(total, 3);
   const rows = Math.ceil(total / cols);
@@ -95,7 +100,7 @@ function presentTargetFor(index: number, total: number, scale: number): THREE.Ve
   const colSpacing = 1.7 * scale;
   const rowSpacing = 2.1 * scale;
   const x = (col - (cols - 1) / 2) * colSpacing;
-  const y = PRESENT_Y + (row - (rows - 1) / 2) * rowSpacing;
+  const y = PRESENT_Y - (row - (rows - 1) / 2) * rowSpacing;
   const z = total <= 1 ? PRESENT_Z : PRESENT_Z - 0.3;
   return new THREE.Vector3(x, y, z);
 }
@@ -497,7 +502,21 @@ export default function Dice() {
 
       <div className={styles.layout}>
         <section className={styles.stage}>
-          <div className={styles.trayWrap} ref={containerRef} />
+          <div
+            className={styles.trayWrap}
+            ref={containerRef}
+            role="button"
+            tabIndex={0}
+            aria-label="Roll the dice"
+            aria-disabled={rolling || pool.length === 0}
+            onClick={roll}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                roll();
+              }
+            }}
+          />
 
           <button className={styles.roll} onClick={roll} disabled={rolling || pool.length === 0}>
             {rolling ? 'rolling…' : 'roll'}
