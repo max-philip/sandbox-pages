@@ -33,7 +33,25 @@
 @media (max-width: 760px) {
   .layout {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1rem;
+  }
+}
+
+// Groups totals + the add-dice panel so they stack with their own height in
+// the right column on desktop, independent of the (much taller) tray column.
+// On mobile there's only one column, so this unwraps entirely and the three
+// pieces (stage, totals, panel) just stack in DOM order instead. Totals never
+// resizes after it mounts (see .totals below), so a plain gap here is safe —
+// nothing needs to dodge an in-progress grow animation.
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    display: contents;
   }
 }
 
@@ -44,6 +62,12 @@
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
+}
+
+@media (max-width: 760px) {
+  .stage {
+    gap: 0.85rem;
+  }
 }
 
 .trayWrap {
@@ -92,6 +116,12 @@
   min-height: 3.5rem;
 }
 
+@media (max-width: 760px) {
+  .result {
+    min-height: 3rem;
+  }
+}
+
 .resultChip {
   display: flex;
   flex-direction: column;
@@ -114,6 +144,53 @@
   color: var(--fg);
   min-width: 1.5rem;
   text-align: center;
+}
+
+// Sized as soon as it mounts (its row count is fixed by the pool's dice, known
+// Always rendered at its full two-row size, from first paint, regardless of
+// pool or roll state — nothing here ever mounts, unmounts, grows, or shrinks,
+// so nothing else on the page ever has to shift. Whichever row applies (sum,
+// percentile) simply fades in in place; an inapplicable row just stays an
+// invisible placeholder holding its slot rather than disappearing.
+.totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.totalsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.totalsRowVisible {
+  opacity: 1;
+}
+
+.totalsLabel {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+}
+
+.totalsValue {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.totalsMax {
+  color: var(--dim);
+  font-weight: 400;
+  font-size: 0.75rem;
 }
 
 /* ---- panel ---- */

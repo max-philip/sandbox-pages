@@ -42,6 +42,10 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
+function formatNumber(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
 /**
  * Rotation that turns `faceNormal` (local space) to point along `targetDir` (world
  * space), keeping the face's own decal "up" mapped onto screen-up so the number
@@ -468,6 +472,22 @@ export default function Dice() {
     setResults({});
   };
 
+  const allSettled = rolledDice.length > 0 && rolledDice.every((entry) => results[entry.id] !== undefined);
+  const sum = allSettled ? rolledDice.reduce((acc, entry) => acc + results[entry.id], 0) : 0;
+  const maxSum = allSettled ? rolledDice.reduce((acc, entry) => acc + entry.sides, 0) : 0;
+
+  // Percentile-style composition: an all-d10 pool reads as one big number, each die
+  // a digit (10 -> 0, matching how a physical percentile die is marked), most
+  // significant digit first in pool order — e.g. 3 d10s compose a d1000 roll (0-999).
+  const isPercentilePool = rolledDice.length > 1 && rolledDice.every((entry) => entry.sides === 10);
+  const percentileDigits = allSettled && isPercentilePool ? rolledDice.map((entry) => results[entry.id] % 10) : [];
+  const percentileValue = formatNumber(Number(percentileDigits.join('')));
+  const percentileMax = formatNumber(10 ** rolledDice.length - 1);
+  const percentileLabel = `d${formatNumber(10 ** rolledDice.length)}`;
+
+  const showSum = allSettled && rolledDice.length > 1;
+  const showPercentile = allSettled && isPercentilePool;
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -495,42 +515,64 @@ export default function Dice() {
           </div>
         </section>
 
-        <section className={styles.panel}>
-          <span className={styles.fieldLabel}>Add dice</span>
-          <div className={styles.sideGrid}>
-            {DIE_OPTIONS.map((n) => (
-              <button
-                key={n}
-                className={styles.sideBtn}
-                onClick={() => addDie(n)}
-                disabled={rolling || pool.length >= MAX_POOL_SIZE}
-              >
-                d{n}
-              </button>
-            ))}
+        <div className={styles.sidebar}>
+          <div className={styles.totals} aria-live="polite">
+            <div className={`${styles.totalsRow} ${showSum ? styles.totalsRowVisible : ''}`} aria-hidden={!showSum}>
+              <span className={styles.totalsLabel}>sum</span>
+              <span className={styles.totalsValue}>
+                {formatNumber(sum)}
+                <span className={styles.totalsMax}>/{formatNumber(maxSum)}</span>
+              </span>
+            </div>
+            <div
+              className={`${styles.totalsRow} ${showPercentile ? styles.totalsRowVisible : ''}`}
+              aria-hidden={!showPercentile}
+            >
+              <span className={styles.totalsLabel}>{percentileLabel}</span>
+              <span className={styles.totalsValue}>
+                {percentileValue}
+                <span className={styles.totalsMax}>/{percentileMax}</span>
+              </span>
+            </div>
           </div>
 
-          <span className={styles.fieldLabel}>
-            Pool ({pool.length}/{MAX_POOL_SIZE})
-          </span>
-          <div className={styles.pool}>
-            {pool.length === 0 && <span className={styles.poolEmpty}>no dice yet</span>}
-            {pool.map((entry) => (
-              <button
-                key={entry.id}
-                className={styles.poolChip}
-                onClick={() => removeDie(entry.id)}
-                disabled={rolling}
-                title={`Remove d${entry.sides}`}
-              >
-                d{entry.sides} <span className={styles.poolChipX}>×</span>
-              </button>
-            ))}
-          </div>
-          <button className={styles.ghost} onClick={clearPool} disabled={rolling || pool.length === 0}>
-            clear
-          </button>
-        </section>
+          <section className={styles.panel}>
+            <span className={styles.fieldLabel}>Add dice</span>
+            <div className={styles.sideGrid}>
+              {DIE_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  className={styles.sideBtn}
+                  onClick={() => addDie(n)}
+                  disabled={rolling || pool.length >= MAX_POOL_SIZE}
+                >
+                  d{n}
+                </button>
+              ))}
+            </div>
+
+            <span className={styles.fieldLabel}>
+              Pool ({pool.length}/{MAX_POOL_SIZE})
+            </span>
+            <div className={styles.pool}>
+              {pool.length === 0 && <span className={styles.poolEmpty}>no dice yet</span>}
+              {pool.map((entry) => (
+                <button
+                  key={entry.id}
+                  className={styles.poolChip}
+                  onClick={() => removeDie(entry.id)}
+                  disabled={rolling}
+                  title={`Remove d${entry.sides}`}
+                >
+                  d{entry.sides} <span className={styles.poolChipX}>×</span>
+                </button>
+              ))}
+            </div>
+            <button className={styles.ghost} onClick={clearPool} disabled={rolling || pool.length === 0}>
+              clear
+            </button>
+          </section>
+        </div>
       </div>
     </div>
   );
