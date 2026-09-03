@@ -483,11 +483,17 @@ export default function Dice() {
 
   // Percentile-style composition: an all-d10 pool reads as one big number, each die
   // a digit (10 -> 0, matching how a physical percentile die is marked), most
-  // significant digit first in pool order — e.g. 3 d10s compose a d1000 roll (0-999).
+  // significant digit first in pool order — e.g. 3 d10s compose a d1000 roll.
+  // 1-indexed like a real percentile die: every digit combo reads as its plain
+  // composed number (1..10^N - 1) except all-zero, which wraps around to the
+  // top of the range (10^N) rather than reading as 0 — e.g. three 10s on 3d10
+  // is 1000, not 000.
   const isPercentilePool = rolledDice.length > 1 && rolledDice.every((entry) => entry.sides === 10);
   const percentileDigits = allSettled && isPercentilePool ? rolledDice.map((entry) => results[entry.id] % 10) : [];
-  const percentileValue = formatNumber(Number(percentileDigits.join('')));
-  const percentileMax = formatNumber(10 ** rolledDice.length - 1);
+  const percentileRaw = Number(percentileDigits.join(''));
+  const percentileIsMax = allSettled && isPercentilePool && percentileDigits.length > 0 && percentileRaw === 0;
+  const percentileValue = formatNumber(percentileIsMax ? 10 ** rolledDice.length : percentileRaw);
+  const percentileMax = formatNumber(10 ** rolledDice.length);
   const percentileLabel = `d${10 ** rolledDice.length}`;
 
   const showSum = allSettled && rolledDice.length > 1;
